@@ -5,9 +5,9 @@ interface TechSignature {
   name: string;
   category: 'frontend' | 'backend' | 'cms' | 'server' | 'analytics' | 'other';
   patterns: {
+    type: 'script' | 'meta' | 'header' | 'html' | 'class' | 'attribute';
     pattern: string;
-    confidence: number;
-    type: 'script' | 'meta' | 'class' | 'id' | 'attribute' | 'header' | 'content';
+    description: string;
   }[];
 }
 
@@ -17,20 +17,32 @@ const techSignatures: TechSignature[] = [
     name: 'React', 
     category: 'frontend', 
     patterns: [
-      { pattern: 'react', confidence: 0.3, type: 'content' },
-      { pattern: 'react-dom', confidence: 0.8, type: 'script' },
-      { pattern: 'data-reactroot', confidence: 0.9, type: 'attribute' },
-      { pattern: 'ReactDOM.render', confidence: 0.9, type: 'content' }
+      {
+        type: 'script',
+        pattern: 'react',
+        description: 'React script detected in page source'
+      },
+      {
+        type: 'class',
+        pattern: 'data-reactroot',
+        description: 'React root element found in DOM'
+      }
     ]
   },
   { 
     name: 'Vue.js', 
     category: 'frontend', 
     patterns: [
-      { pattern: 'vue', confidence: 0.3, type: 'content' },
-      { pattern: 'vue.js', confidence: 0.8, type: 'script' },
-      { pattern: 'v-bind', confidence: 0.9, type: 'attribute' },
-      { pattern: 'v-for', confidence: 0.9, type: 'attribute' }
+      {
+        type: 'script',
+        pattern: 'vue',
+        description: 'Vue.js script detected in page source'
+      },
+      {
+        type: 'attribute',
+        pattern: 'v-',
+        description: 'Vue.js directive found in HTML'
+      }
     ]
   },
   { 
@@ -57,18 +69,27 @@ const techSignatures: TechSignature[] = [
     name: 'Node.js', 
     category: 'backend', 
     patterns: [
-      { pattern: 'node', confidence: 0.3, type: 'content' },
-      { pattern: 'express', confidence: 0.7, type: 'content' },
-      { pattern: 'next.js', confidence: 0.9, type: 'script' }
+      {
+        type: 'header',
+        pattern: 'x-powered-by: express',
+        description: 'Express.js header indicates Node.js backend'
+      }
     ]
   },
   { 
     name: 'PHP', 
     category: 'backend', 
     patterns: [
-      { pattern: 'php', confidence: 0.3, type: 'content' },
-      { pattern: '.php', confidence: 0.8, type: 'content' },
-      { pattern: 'X-Powered-By', confidence: 0.9, type: 'header' }
+      {
+        type: 'header',
+        pattern: 'x-powered-by: php',
+        description: 'PHP header detected in server response'
+      },
+      {
+        type: 'html',
+        pattern: '.php',
+        description: 'PHP file extension found in URLs'
+      }
     ]
   },
   
@@ -77,10 +98,21 @@ const techSignatures: TechSignature[] = [
     name: 'WordPress', 
     category: 'cms', 
     patterns: [
-      { pattern: 'wp-', confidence: 0.3, type: 'content' },
-      { pattern: 'wordpress', confidence: 0.5, type: 'content' },
-      { pattern: 'wp-content', confidence: 0.8, type: 'content' },
-      { pattern: 'wp-includes', confidence: 0.9, type: 'content' }
+      {
+        type: 'meta',
+        pattern: 'wp-',
+        description: 'WordPress meta tags found'
+      },
+      {
+        type: 'html',
+        pattern: '/wp-content/',
+        description: 'WordPress content directory referenced'
+      },
+      {
+        type: 'html',
+        pattern: '/wp-includes/',
+        description: 'WordPress includes directory referenced'
+      }
     ]
   },
   
@@ -89,9 +121,16 @@ const techSignatures: TechSignature[] = [
     name: 'Google Analytics', 
     category: 'analytics', 
     patterns: [
-      { pattern: 'google-analytics', confidence: 0.3, type: 'content' },
-      { pattern: 'ga.js', confidence: 0.8, type: 'script' },
-      { pattern: 'gtag', confidence: 0.9, type: 'script' }
+      {
+        type: 'script',
+        pattern: 'google-analytics.com',
+        description: 'Google Analytics script detected'
+      },
+      {
+        type: 'script',
+        pattern: 'gtag',
+        description: 'Google Analytics gtag found'
+      }
     ]
   },
   
@@ -181,8 +220,11 @@ const techSignatures: TechSignature[] = [
     name: 'Nginx', 
     category: 'server', 
     patterns: [
-      { pattern: 'nginx', confidence: 0.9, type: 'content' },
-      { pattern: 'nginx.conf', confidence: 0.9, type: 'content' }
+      {
+        type: 'header',
+        pattern: 'server: nginx',
+        description: 'Nginx server header detected'
+      }
     ]
   },
   { 
@@ -238,107 +280,69 @@ const techSignatures: TechSignature[] = [
       { pattern: 'vite.js', confidence: 0.8, type: 'script' },
       { pattern: 'vite.config', confidence: 0.9, type: 'content' }
     ]
+  },
+  {
+    name: 'Apache',
+    category: 'server',
+    patterns: [
+      {
+        type: 'header',
+        pattern: 'server: apache',
+        description: 'Apache server header detected'
+      }
+    ]
   }
 ];
 
 interface DetectedTech {
   name: string;
+  category: string;
   confidence: number;
-  evidence: string[];
+  evidence: { type: string; description: string; match: string }[];
 }
 
-function detectTechnologies(html: string, headers: Headers): { [key: string]: DetectedTech[] } {
-  const detected: { [key: string]: DetectedTech[] } = {
-    frontend: [],
-    backend: [],
-    cms: [],
-    server: [],
-    analytics: [],
-    other: []
-  };
+function detectTechnologies(html: string, headers: Record<string, string>): DetectedTech[] {
+  const detected: DetectedTech[] = [];
+  const headerString = Object.entries(headers)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n')
+    .toLowerCase();
 
-  // Check HTML content
   techSignatures.forEach(tech => {
-    let maxConfidence = 0;
-    const evidence: string[] = [];
+    let confidence = 0;
+    const evidence: { type: string; description: string; match: string }[] = [];
 
-    tech.patterns.forEach(({ pattern, confidence, type }) => {
-      let found = false;
-      
-      switch (type) {
-        case 'script':
-          found = html.includes(`<script src="${pattern}"`) || 
-                 html.includes(`<script>${pattern}`);
-          break;
-        case 'meta':
-          found = html.includes(`<meta name="${pattern}"`) || 
-                 html.includes(`<meta property="${pattern}"`);
-          break;
-        case 'class':
-          found = html.includes(`class="${pattern}"`) || 
-                 html.includes(`class='${pattern}'`);
-          break;
-        case 'id':
-          found = html.includes(`id="${pattern}"`) || 
-                 html.includes(`id='${pattern}'`);
-          break;
-        case 'attribute':
-          found = html.includes(`${pattern}=`);
-          break;
-        case 'header':
-          const headerValue = headers.get(pattern);
-          found = headerValue !== null && (
-            pattern === 'X-Powered-By' ? headerValue.toLowerCase().includes('php') :
-            headerValue.toLowerCase().includes(pattern.toLowerCase())
-          );
-          break;
-        default:
-          found = html.toLowerCase().includes(pattern.toLowerCase());
-      }
-
-      if (found) {
-        if (confidence > maxConfidence) {
-          maxConfidence = confidence;
-          // Only keep evidence that contributed to the confidence score
-          evidence.length = 0;
-          evidence.push(`${type}: ${pattern}`);
-        } else if (confidence === maxConfidence) {
-          // Add additional evidence at the same confidence level
-          evidence.push(`${type}: ${pattern}`);
+    tech.patterns.forEach(pattern => {
+      if (pattern.type === 'header') {
+        if (headerString.includes(pattern.pattern.toLowerCase())) {
+          confidence += 1;
+          evidence.push({
+            type: 'Server Header',
+            description: pattern.description,
+            match: pattern.pattern
+          });
+        }
+      } else {
+        const regex = new RegExp(pattern.pattern, 'i');
+        if (regex.test(html)) {
+          confidence += 1;
+          evidence.push({
+            type: pattern.type.charAt(0).toUpperCase() + pattern.type.slice(1),
+            description: pattern.description,
+            match: pattern.pattern
+          });
         }
       }
     });
 
-    if (maxConfidence > 0) {
-      detected[tech.category].push({
+    if (confidence > 0) {
+      detected.push({
         name: tech.name,
-        confidence: maxConfidence,
+        category: tech.category,
+        confidence: (confidence / tech.patterns.length) * 100,
         evidence
       });
     }
-  });
-
-  // Check server headers
-  const serverHeader = headers.get('server');
-  if (serverHeader) {
-    if (serverHeader.toLowerCase().includes('nginx')) {
-      detected.server.push({
-        name: 'Nginx',
-        confidence: 0.9,
-        evidence: [`header: ${serverHeader}`]
-      });
-    } else if (serverHeader.toLowerCase().includes('apache')) {
-      detected.server.push({
-        name: 'Apache',
-        confidence: 0.9,
-        evidence: [`header: ${serverHeader}`]
-      });
-    }
-  }
-
-  // Sort by confidence
-  Object.keys(detected).forEach(key => {
-    detected[key].sort((a, b) => b.confidence - a.confidence);
   });
 
   return detected;
@@ -424,13 +428,92 @@ export const POST: RequestHandler = async ({ request }) => {
     // Technology stack with confidence scores
     const techStack = {
       title: 'Technology Stack',
-      items: Object.entries(technologies).map(([category, techs]) => ({
-        name: category.charAt(0).toUpperCase() + category.slice(1),
-        value: techs.length > 0 
-          ? techs.map(tech => `${tech.name} (${Math.round(tech.confidence * 100)}% confidence)`).join(', ')
-          : 'Not detected',
-        evidence: techs.length > 0 ? techs.map(tech => tech.evidence).flat() : undefined
-      }))
+      items: [
+        {
+          name: 'Frontend',
+          value: technologies.filter(t => t.category === 'frontend').length > 0 
+            ? technologies.filter(t => t.category === 'frontend')
+                .map(tech => `${tech.name} (${Math.round(tech.confidence)}% confidence)`)
+                .join(', ')
+            : 'Not detected',
+          technologies: technologies.filter(t => t.category === 'frontend')
+            .map(tech => ({
+              name: tech.name,
+              confidence: tech.confidence,
+              evidence: tech.evidence
+            }))
+        },
+        {
+          name: 'Backend',
+          value: technologies.filter(t => t.category === 'backend').length > 0 
+            ? technologies.filter(t => t.category === 'backend')
+                .map(tech => `${tech.name} (${Math.round(tech.confidence)}% confidence)`)
+                .join(', ')
+            : 'Not detected',
+          technologies: technologies.filter(t => t.category === 'backend')
+            .map(tech => ({
+              name: tech.name,
+              confidence: tech.confidence,
+              evidence: tech.evidence
+            }))
+        },
+        {
+          name: 'CMS',
+          value: technologies.filter(t => t.category === 'cms').length > 0 
+            ? technologies.filter(t => t.category === 'cms')
+                .map(tech => `${tech.name} (${Math.round(tech.confidence)}% confidence)`)
+                .join(', ')
+            : 'Not detected',
+          technologies: technologies.filter(t => t.category === 'cms')
+            .map(tech => ({
+              name: tech.name,
+              confidence: tech.confidence,
+              evidence: tech.evidence
+            }))
+        },
+        {
+          name: 'Server',
+          value: technologies.filter(t => t.category === 'server').length > 0 
+            ? technologies.filter(t => t.category === 'server')
+                .map(tech => `${tech.name} (${Math.round(tech.confidence)}% confidence)`)
+                .join(', ')
+            : 'Not detected',
+          technologies: technologies.filter(t => t.category === 'server')
+            .map(tech => ({
+              name: tech.name,
+              confidence: tech.confidence,
+              evidence: tech.evidence
+            }))
+        },
+        {
+          name: 'Analytics',
+          value: technologies.filter(t => t.category === 'analytics').length > 0 
+            ? technologies.filter(t => t.category === 'analytics')
+                .map(tech => `${tech.name} (${Math.round(tech.confidence)}% confidence)`)
+                .join(', ')
+            : 'Not detected',
+          technologies: technologies.filter(t => t.category === 'analytics')
+            .map(tech => ({
+              name: tech.name,
+              confidence: tech.confidence,
+              evidence: tech.evidence
+            }))
+        },
+        {
+          name: 'Other',
+          value: technologies.filter(t => t.category === 'other').length > 0 
+            ? technologies.filter(t => t.category === 'other')
+                .map(tech => `${tech.name} (${Math.round(tech.confidence)}% confidence)`)
+                .join(', ')
+            : 'Not detected',
+          technologies: technologies.filter(t => t.category === 'other')
+            .map(tech => ({
+              name: tech.name,
+              confidence: tech.confidence,
+              evidence: tech.evidence
+            }))
+        }
+      ]
     };
 
     return json({

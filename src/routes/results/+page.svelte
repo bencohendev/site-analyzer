@@ -29,7 +29,14 @@
       items: {
         name: string;
         value: string;
-        evidence?: string[];
+        technologies?: {
+          name: string;
+          confidence: number;
+          evidence: {
+            description: string;
+            match: string;
+          }[];
+        }[];
       }[];
     };
   }
@@ -60,6 +67,10 @@
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function getTechByName(technologies: { name: string; confidence: number; evidence: { description: string; match: string }[] }[] | undefined, name: string) {
+    return technologies?.find(t => t.name === name);
   }
 
   onMount(async () => {
@@ -173,15 +184,21 @@
                               </div>
                               {#if expandedTechs.has(tech.split(' (')[0])}
                                 <div class="mt-1 text-sm text-gray-500 pl-6">
-                                  {#if item.evidence}
-                                    <div class="space-y-1">
-                                      {#each item.evidence as evidence}
-                                        <div class="flex items-center space-x-1">
-                                          <span class="text-gray-400">•</span>
-                                          <span>{evidence}</span>
-                                        </div>
-                                      {/each}
-                                    </div>
+                                  {#if item.technologies}
+                                    {#if getTechByName(item.technologies, tech.split(' (')[0])}
+                                      <div class="space-y-1">
+                                        <div class="font-medium text-gray-700">{getTechByName(item.technologies, tech.split(' (')[0])?.name}</div>
+                                        {#each getTechByName(item.technologies, tech.split(' (')[0])?.evidence ?? [] as evidence}
+                                          <div class="flex items-start space-x-2">
+                                            <span class="text-gray-400 mt-1">•</span>
+                                            <div class="flex-1">
+                                              <div class="text-gray-600">{evidence.description}</div>
+                                              <div class="text-gray-500 text-xs mt-0.5">Found: <code class="bg-gray-100 px-1 py-0.5 rounded">{evidence.match}</code></div>
+                                            </div>
+                                          </div>
+                                        {/each}
+                                      </div>
+                                    {/if}
                                   {/if}
                                 </div>
                               {/if}
