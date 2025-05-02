@@ -297,8 +297,15 @@ function detectTechnologies(html: string, headers: Headers): { [key: string]: De
       }
 
       if (found) {
-        maxConfidence = Math.max(maxConfidence, confidence);
-        evidence.push(`${type}: ${pattern}`);
+        if (confidence > maxConfidence) {
+          maxConfidence = confidence;
+          // Only keep evidence that contributed to the confidence score
+          evidence.length = 0;
+          evidence.push(`${type}: ${pattern}`);
+        } else if (confidence === maxConfidence) {
+          // Add additional evidence at the same confidence level
+          evidence.push(`${type}: ${pattern}`);
+        }
       }
     });
 
@@ -421,7 +428,8 @@ export const POST: RequestHandler = async ({ request }) => {
         name: category.charAt(0).toUpperCase() + category.slice(1),
         value: techs.length > 0 
           ? techs.map(tech => `${tech.name} (${Math.round(tech.confidence * 100)}% confidence)`).join(', ')
-          : 'Not detected'
+          : 'Not detected',
+        evidence: techs.length > 0 ? techs.map(tech => tech.evidence).flat() : undefined
       }))
     };
 

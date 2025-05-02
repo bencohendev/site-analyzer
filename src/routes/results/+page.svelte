@@ -29,6 +29,7 @@
       items: {
         name: string;
         value: string;
+        evidence?: string[];
       }[];
     };
   }
@@ -36,6 +37,16 @@
   let analysis: Analysis | null = null;
   let error = '';
   let loading = true;
+  let expandedTechs: Set<string> = new Set();
+
+  function toggleTechDetails(techName: string) {
+    if (expandedTechs.has(techName)) {
+      expandedTechs.delete(techName);
+    } else {
+      expandedTechs.add(techName);
+    }
+    expandedTechs = expandedTechs; // trigger reactivity
+  }
 
   function exportResults() {
     if (!analysis) return;
@@ -106,40 +117,102 @@
     {:else if analysis}
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         {#each Object.entries(analysis) as [key, section]}
-          {#if key !== 'url'}
+          {#if key !== 'url' && key !== 'techStack' && (key === 'structure' || key === 'performance')}
             <div class="bg-white rounded-lg shadow-sm p-6">
               <h2 class="text-xl font-semibold text-gray-900 mb-4">{section.title}</h2>
               <dl class="space-y-3">
                 {#each section.items as item}
                   <div class="flex justify-between">
                     <dt class="text-gray-600">{item.name}</dt>
-                    <dd class="font-medium text-gray-900">
-                      {#if key === 'techStack'}
-                        <div class="text-right">
-                          {#if item.value !== 'Not detected'}
-                            <div class="space-y-2">
-                              {#each item.value.split(', ') as tech}
-                                <div class="flex items-center justify-end space-x-2">
-                                  <span>{tech}</span>
-                                  {#if tech.includes('%')}
-                                    <div class="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                      <div 
-                                        class="h-full bg-blue-600 rounded-full"
-                                        style="width: {tech.match(/\d+/)[0]}%"
-                                      ></div>
+                    <dd class="font-medium text-gray-900">{item.value}</dd>
+                  </div>
+                {/each}
+              </dl>
+            </div>
+          {/if}
+        {/each}
+      </div>
+
+      {#if analysis && analysis.techStack}
+        <div class="my-6">
+          <div class="bg-white rounded-lg shadow-sm p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">{analysis.techStack.title}</h2>
+            <dl class="space-y-3">
+              {#each analysis.techStack.items as item, i}
+                <div class="flex flex-col">
+                  <dt class="text-gray-600 font-medium mb-2">{item.name}</dt>
+                  <dd class="font-medium text-gray-900 pl-4">
+                    <div>
+                      {#if item.value !== 'Not detected'}
+                        <div class="space-y-2">
+                          {#each item.value.split(', ') as tech}
+                            <div class="flex flex-col">
+                              <div class="flex items-center space-x-2">
+                                <button
+                                  on:click={() => toggleTechDetails(tech.split(' (')[0])}
+                                  class="text-gray-600 hover:text-gray-900 focus:outline-none"
+                                >
+                                  <svg
+                                    class="w-4 h-4 transform transition-transform {expandedTechs.has(tech.split(' (')[0]) ? 'rotate-180' : ''}"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                                <span>{tech}</span>
+                                {#if tech.includes('%')}
+                                  <div class="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      class="h-full bg-blue-600 rounded-full"
+                                      style="width: {tech.match(/\d+/)?.[0] ?? 0}%"
+                                    ></div>
+                                  </div>
+                                {/if}
+                              </div>
+                              {#if expandedTechs.has(tech.split(' (')[0])}
+                                <div class="mt-1 text-sm text-gray-500 pl-6">
+                                  {#if item.evidence}
+                                    <div class="space-y-1">
+                                      {#each item.evidence as evidence}
+                                        <div class="flex items-center space-x-1">
+                                          <span class="text-gray-400">•</span>
+                                          <span>{evidence}</span>
+                                        </div>
+                                      {/each}
                                     </div>
                                   {/if}
                                 </div>
-                              {/each}
+                              {/if}
                             </div>
-                          {:else}
-                            <span class="text-gray-500">Not detected</span>
-                          {/if}
+                          {/each}
                         </div>
                       {:else}
-                        {item.value}
+                        <span class="text-gray-500">Not detected</span>
                       {/if}
-                    </dd>
+                    </div>
+                  </dd>
+                </div>
+                {#if i < analysis.techStack.items.length - 1}
+                  <div class="border-t border-gray-200 my-3"></div>
+                {/if}
+              {/each}
+            </dl>
+          </div>
+        </div>
+      {/if}
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {#each Object.entries(analysis) as [key, section]}
+          {#if key !== 'url' && key !== 'techStack' && (key === 'seo' || key === 'accessibility')}
+            <div class="bg-white rounded-lg shadow-sm p-6">
+              <h2 class="text-xl font-semibold text-gray-900 mb-4">{section.title}</h2>
+              <dl class="space-y-3">
+                {#each section.items as item}
+                  <div class="flex justify-between">
+                    <dt class="text-gray-600">{item.name}</dt>
+                    <dd class="font-medium text-gray-900">{item.value}</dd>
                   </div>
                 {/each}
               </dl>
